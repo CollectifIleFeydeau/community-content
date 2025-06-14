@@ -1,0 +1,29 @@
+{
+  "entries": [
+    {
+      "id": "example-entry-1",
+      "type": "photo",
+      "author": "Collectif Feydeau",
+      "title": "Exemple de photo",
+      "description": "Une photo d'exemple pour illustrer la structure des données",
+      "imageUrl": "images/example-image.jpg",
+      "thumbnailUrl": "thumbnails/example-image-thumb.jpg",
+      "createdAt": "2025-06-14T12:00:00Z",
+      "likes": 5,
+      "eventId": null,
+      "locationId": null
+    },
+    {
+      "id": "example-entry-2",
+      "type": "testimonial",
+      "author": "Visiteur",
+      "title": "Mon expérience",
+      "content": "Un témoignage d'exemple pour illustrer la structure des données",
+      "createdAt": "2025-06-14T12:30:00Z",
+      "likes": 3,
+      "eventId": null,
+      "locationId": null
+    }
+  ],
+  "lastUpdated": "2025-06-14T14:17:00Z"
+}
