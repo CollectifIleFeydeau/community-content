@@ -1,0 +1,37 @@
+name: Synchronize Issues to entries.json
+
+on:
+  issues:
+    types: [opened, edited, deleted, closed, reopened, labeled, unlabeled]
+  workflow_dispatch:  # Permet de déclencher manuellement le workflow
+
+jobs:
+  sync-entries:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Nécessaire pour pousser des modifications
+      issues: read     # Nécessaire pour lire les issues
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install @octokit/rest
+
+      - name: Synchronize issues to entries.json
+        run: node .github/scripts/sync-issues.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit and push if changed
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add entries.json
+          git diff --staged --quiet || (git commit -m "Update entries.json from GitHub issues" && git push)
