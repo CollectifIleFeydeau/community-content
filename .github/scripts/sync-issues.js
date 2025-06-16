@@ -1,6 +1,6 @@
-const fs = require('fs').promises;
-const path = require('path');
-const { Octokit } = require('@octokit/rest');
+import { promises as fs } from 'fs';
+import path from 'path';
+import { Octokit } from '@octokit/rest';
 
 // Configuration
 const REPO_OWNER = 'CollectifIleFeydeau';
@@ -51,11 +51,37 @@ function convertIssueToEntry(issue) {
   }
   
   if (type === 'photo') {
-    // Extraire l'image
-    const imageMatch = body.match(/!\[Image\]\((data:image\/[^;]+;base64,[^)]+)\)/);
-    if (imageMatch && imageMatch[1]) {
-      entry.imageUrl = imageMatch[1];
-      entry.thumbnailUrl = imageMatch[1]; // Même image pour la miniature
+    // Extraire l'image - essayer plusieurs formats possibles
+    let imageUrl = null;
+    
+    // Format markdown standard: ![Image](data:image/...)
+    const markdownMatch = body.match(/!\[(?:Image|Photo|image|photo)?\]\((data:image\/[^;]+;base64,[^)]+)\)/);
+    if (markdownMatch && markdownMatch[1]) {
+      imageUrl = markdownMatch[1];
+    }
+    
+    // Format HTML: <img src="data:image/..." />
+    if (!imageUrl) {
+      const htmlMatch = body.match(/<img[^>]*src=["']?(data:image\/[^;]+;base64,[^"'\s>]+)["']?[^>]*>/);
+      if (htmlMatch && htmlMatch[1]) {
+        imageUrl = htmlMatch[1];
+      }
+    }
+    
+    // Format brut: data:image/...;base64,...
+    if (!imageUrl) {
+      const rawMatch = body.match(/(data:image\/[^;]+;base64,[^\s"'<>]+)/);
+      if (rawMatch && rawMatch[1]) {
+        imageUrl = rawMatch[1];
+      }
+    }
+    
+    if (imageUrl) {
+      entry.imageUrl = imageUrl;
+      entry.thumbnailUrl = imageUrl; // Même image pour la miniature
+      console.log(`Image trouvée pour l'issue #${issue.number}`);
+    } else {
+      console.warn(`Aucune image trouvée pour l'issue #${issue.number} de type photo`);
     }
     
     // Extraire la description
@@ -143,4 +169,7 @@ async function main() {
 }
 
 // Exécuter la fonction principale
-main();
+main().catch(error => {
+  console.error('Erreur lors de l\'exécution:', error);
+  process.exit(1);
+});

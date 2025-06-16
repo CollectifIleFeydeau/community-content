@@ -22,7 +22,7 @@ jobs:
           node-version: '18'
 
       - name: Install dependencies
-        run: npm install @octokit/rest
+        run: npm install
 
       - name: Synchronize issues to entries.json
         run: node .github/scripts/sync-issues.js
