@@ -1,0 +1,10 @@
+{
+  "name": "community-content-services",
+  "version": "1.0.0",
+  "description": "Services for managing community content",
+  "main": "communityService.js",
+  "type": "module",
+  "exports": {
+    ".": "./communityService.js"
+  }
+}

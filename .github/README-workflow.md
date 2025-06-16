@@ -5,8 +5,11 @@ Ce dépôt contient les contributions communautaires (photos et témoignages) po
 ## Fonctionnement
 
 1. Les contributions sont soumises via le site web et créent des issues GitHub dans ce dépôt
-2. Une GitHub Action (`sync-entries.yml`) s'exécute automatiquement à chaque modification d'issue
-3. Cette action convertit les issues en entrées dans le fichier `entries.json`
+2. Plusieurs GitHub Actions s'exécutent pour traiter les contributions:
+   - `process-contribution.yml`: Traite une contribution individuelle
+   - `process-contributions.yml`: Traite l'ensemble des contributions en lot
+   - `update-likes.yml`: Gère les mises à jour des likes
+3. Ces actions convertissent les issues en entrées dans le fichier `entries.json` et traitent les médias
 4. Le site web charge les contributions depuis ce fichier JSON
 
 ## Structure d'une issue de contribution
@@ -29,8 +32,12 @@ Une issue de contribution témoignage contient :
 
 - Les issues ouvertes sont considérées comme des contributions approuvées
 - Les issues fermées sont considérées comme des contributions rejetées
-- Pour supprimer définitivement une contribution, fermez l'issue correspondante
+- Pour supprimer définitivement une contribution, utilisez l'interface d'administration du site ou fermez l'issue correspondante
 
 ## Exécution manuelle
 
-Pour forcer la synchronisation des issues avec le fichier `entries.json`, vous pouvez exécuter manuellement le workflow GitHub Action depuis l'onglet "Actions" du dépôt.
+Pour forcer le traitement des contributions, vous pouvez exécuter manuellement les workflows GitHub Actions depuis l'onglet "Actions" du dépôt:
+
+- `process-contributions.yml` pour traiter toutes les contributions
+- `process-contribution.yml` pour traiter une contribution spécifique (nécessite l'ID de la contribution)
+- `update-likes.yml` pour mettre à jour les likes
