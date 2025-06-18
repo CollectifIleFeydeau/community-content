@@ -100,6 +100,18 @@ export default {
         }
         
         const entry = contributionData.entry;
+        
+        // Valider que les champs essentiels ne sont pas vides
+        if (!entry.displayName || entry.displayName.trim() === '') {
+          return new Response("Données invalides: displayName requis et ne peut pas être vide", { 
+            status: 400,
+            headers: corsHeaders
+          });
+        }
+        
+        // La description est optionnelle, donc on accepte qu'elle soit vide
+        const description = entry.description?.trim() || 'Aucune description fournie';
+        
         console.log(`Création d'une contribution GitHub: ${entry.displayName} (${entry.type})`);
         
         // Formater le titre de l'issue
@@ -108,7 +120,7 @@ export default {
         // Formater le corps de l'issue avec toutes les métadonnées
         const body = `**Type:** ${entry.type}
 **Nom d'affichage:** ${entry.displayName}
-**Description:** ${entry.description}
+**Description:** ${description}
 **Contenu:** ${entry.content}
 **Créé le:** ${entry.createdAt}
 **Timestamp:** ${entry.timestamp}
