@@ -29,6 +29,22 @@ interface LikeIssueData {
   action: 'like' | 'unlike';
 }
 
+// Interface pour les données de création de contribution
+interface CreateContributionData {
+  entry: {
+    id: string;
+    type: string;
+    displayName: string;
+    content: string;
+    description: string;
+    createdAt: string;
+    timestamp: number;
+    likes: number;
+    moderation: string;
+  };
+  sessionId: string;
+}
+
 export default {
   // Fonction principale qui traite toutes les requêtes
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -71,7 +87,86 @@ export default {
       let githubResponse;
       
       // Traiter les différents types de requêtes
-      if (path === "/like-issue") {
+      if (path === "/create-contribution") {
+        // Gestion de la création de contribution
+        const contributionData = requestData as CreateContributionData;
+        
+        // Valider les données
+        if (!contributionData.entry || !contributionData.sessionId) {
+          return new Response("Données invalides: entry et sessionId requis", { 
+            status: 400,
+            headers: corsHeaders
+          });
+        }
+        
+        const entry = contributionData.entry;
+        console.log(`Création d'une contribution GitHub: ${entry.displayName} (${entry.type})`);
+        
+        // Formater le titre de l'issue
+        const title = `${entry.type}: ${entry.displayName}`;
+        
+        // Formater le corps de l'issue avec toutes les métadonnées
+        const body = `**Type:** ${entry.type}
+**Nom d'affichage:** ${entry.displayName}
+**Description:** ${entry.description}
+**Contenu:** ${entry.content}
+**Créé le:** ${entry.createdAt}
+**Timestamp:** ${entry.timestamp}
+**Likes:** ${entry.likes}
+**Modération:** ${entry.moderation}
+**ID:** ${entry.id}
+**Session:** ${contributionData.sessionId}`;
+        
+        // Définir les labels appropriés selon le type de contribution
+        const labels = ["contribution"];
+        if (entry.type) {
+          labels.push(entry.type.toLowerCase());
+        }
+        if (entry.moderation === 'pending') {
+          labels.push("moderation-pending");
+        }
+        
+        try {
+          // Créer l'issue GitHub
+          githubResponse = await fetch(
+            "https://api.github.com/repos/CollectifIleFeydeau/community-content/issues",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/vnd.github.v3+json",
+                "Authorization": `token ${env.GITHUB_TOKEN}`,
+                "User-Agent": "Cloudflare-Worker-CollectifFeydeau"
+              },
+              body: JSON.stringify({
+                title: title,
+                body: body,
+                labels: labels
+              })
+            }
+          );
+          
+          if (!githubResponse.ok) {
+            console.error(`Erreur lors de la création de la contribution: ${githubResponse.status}`);
+            const errorBody = await githubResponse.text();
+            console.error(`Détail de l'erreur: ${errorBody}`);
+            
+            return new Response(`Erreur lors de la création de la contribution: ${githubResponse.status}\n${errorBody}`, {
+              status: githubResponse.status,
+              headers: corsHeaders
+            });
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+          console.error(`Erreur lors de la création de la contribution: ${errorMessage}`);
+          
+          return new Response(`Erreur lors de la création de la contribution: ${errorMessage}`, {
+            status: 500,
+            headers: corsHeaders
+          });
+        }
+        
+      } else if (path === "/like-issue") {
         // Gestion des likes
         const likeData = requestData as LikeIssueData;
         
@@ -323,4 +418,3 @@ export default {
     }
   },
 };
-
