@@ -2,8 +2,13 @@ name: Synchronize Issues to entries.json
 
 on:
   issues:
-    types: [opened, edited, deleted, closed, reopened, labeled, unlabeled]
+    types: [opened, closed]  # Réduire aux événements essentiels
   workflow_dispatch:  # Permet de déclencher manuellement le workflow
+
+# Éviter les exécutions concurrentes sur la même branche
+concurrency:
+  group: sync-entries-${{ github.ref }}
+  cancel-in-progress: false  # Ne pas annuler, attendre la fin
 
 jobs:
   sync-entries:
@@ -15,6 +20,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Récupérer tout l'historique
+
+      - name: Pull latest changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git pull origin main
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -34,4 +47,10 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add entries.json
-          git diff --staged --quiet || (git commit -m "Update entries.json from GitHub issues" && git push)
+          if ! git diff --staged --quiet; then
+            git commit -m "Update entries.json from GitHub issues [skip ci]"
+            git pull --rebase origin main || true
+            git push origin main
+          else
+            echo "No changes to commit"
+          fi

@@ -16,9 +16,9 @@ const octokit = new Octokit({
  * Convertit une issue GitHub en entrée communautaire
  */
 function convertIssueToEntry(issue) {
-  // Déterminer le type d'entrée
-  const isPhoto = issue.labels.some(label => label.name === 'photo');
-  const isTestimonial = issue.labels.some(label => label.name === 'testimonial');
+  // Déterminer le type d'entrée à partir du titre ou des labels
+  const isPhoto = issue.labels.some(label => label.name === 'photo') || issue.title.startsWith('photo:');
+  const isTestimonial = issue.labels.some(label => label.name === 'testimonial') || issue.title.startsWith('testimonial:');
   
   if (!isPhoto && !isTestimonial) {
     console.log(`Issue #${issue.number} ignorée (pas de label photo/testimonial)`);
@@ -28,7 +28,7 @@ function convertIssueToEntry(issue) {
   const type = isPhoto ? 'photo' : 'testimonial';
   const body = issue.body || '';
   
-  // Extraire les données selon le type
+  // Extraire les données selon le nouveau format du Worker
   let entry = {
     id: `issue-${issue.number}`,
     type,
@@ -44,14 +44,32 @@ function convertIssueToEntry(issue) {
     }
   };
   
-  // Extraire le nom du contributeur
-  const nameMatch = body.match(/\*\*Contributeur:\*\*\s*([^\n]+)/);
+  // Extraire le nom d'affichage depuis le nouveau format
+  const nameMatch = body.match(/\*\*Nom d'affichage:\*\*\s*([^\n]+)/);
   if (nameMatch && nameMatch[1]) {
-    entry.displayName = nameMatch[1];
+    entry.displayName = nameMatch[1].trim();
+  } else {
+    // Fallback: extraire depuis le titre "type: nom"
+    const titleMatch = issue.title.match(/^(?:photo|testimonial):\s*(.+)$/);
+    if (titleMatch && titleMatch[1]) {
+      entry.displayName = titleMatch[1].trim();
+    }
+  }
+  
+  // Extraire la description
+  const descMatch = body.match(/\*\*Description:\*\*\s*([^\n]+)/);
+  if (descMatch && descMatch[1] && descMatch[1].trim() !== 'Aucune description fournie') {
+    entry.description = descMatch[1].trim();
+  }
+  
+  // Extraire le contenu
+  const contentMatch = body.match(/\*\*Contenu:\*\*\s*([^\n]+)/);
+  if (contentMatch && contentMatch[1]) {
+    entry.content = contentMatch[1].trim();
   }
   
   if (type === 'photo') {
-    // Extraire l'image - essayer plusieurs formats possibles
+    // Pour les photos, chercher une image dans le contenu ou le corps
     let imageUrl = null;
     
     // Format markdown standard: ![Image](data:image/...)
@@ -83,22 +101,9 @@ function convertIssueToEntry(issue) {
     } else {
       console.warn(`Aucune image trouvée pour l'issue #${issue.number} de type photo`);
     }
-    
-    // Extraire la description
-    const descMatch = body.match(/\*\*Description:\*\*\s*([^\n]+)/);
-    if (descMatch && descMatch[1]) {
-      entry.description = descMatch[1];
-    }
-  } else {
-    // Pour un témoignage, prendre tout le contenu avant les métadonnées
-    const contentMatch = body.match(/([\s\S]+?)(?:\n\n---\n\n|$)/);
-    if (contentMatch && contentMatch[1]) {
-      entry.content = contentMatch[1].trim();
-    } else {
-      entry.content = body.trim();
-    }
   }
   
+  console.log(`Entrée créée pour l'issue #${issue.number}: ${entry.displayName} (${entry.type})`);
   return entry;
 }
 
