@@ -8,7 +8,7 @@ on:
 # Éviter les exécutions concurrentes sur la même branche
 concurrency:
   group: sync-entries-${{ github.ref }}
-  cancel-in-progress: false  # Ne pas annuler, attendre la fin
+  cancel-in-progress: true  # Annuler les anciens runs pour éviter l'accumulation
 
 jobs:
   sync-entries:
@@ -18,6 +18,9 @@ jobs:
       issues: read     # Nécessaire pour lire les issues
 
     steps:
+      - name: Wait for other workflows
+        run: sleep 10  # Attendre 10 secondes pour regrouper les modifications
+
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
