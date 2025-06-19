@@ -41,6 +41,7 @@ interface CreateContributionData {
     timestamp: number;
     likes: number;
     moderation: string;
+    imageUrl?: string; // Added imageUrl property
   };
   sessionId: string;
 }
@@ -118,10 +119,23 @@ export default {
         const title = `${entry.type}: ${entry.displayName}`;
         
         // Formater le corps de l'issue avec toutes les métadonnées
-        const body = `**Type:** ${entry.type}
+        let body = `**Type:** ${entry.type}
 **Nom d'affichage:** ${entry.displayName}
 **Description:** ${description}
-**Contenu:** ${entry.content}
+**Contenu:** ${entry.content}`;
+
+        // Pour les photos, ajouter l'image en premier pour qu'elle soit visible
+        if (entry.type === 'photo' && entry.imageUrl) {
+          body = `![Photo](${entry.imageUrl})
+
+${body}`;
+        }
+
+        // Ajouter les métadonnées techniques
+        body += `
+
+---
+
 **Créé le:** ${entry.createdAt}
 **Timestamp:** ${entry.timestamp}
 **Likes:** ${entry.likes}
