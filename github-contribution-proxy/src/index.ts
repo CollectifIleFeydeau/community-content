@@ -46,50 +46,6 @@ interface CreateContributionData {
   sessionId: string;
 }
 
-/**
- * Upload une image base64 vers le repository GitHub
- * @param env L'environnement avec le token GitHub
- * @param imageBase64 L'image en base64 (data:image/jpeg;base64,...)
- * @param filename Le nom du fichier à créer
- * @returns L'URL GitHub raw de l'image uploadée
- */
-async function uploadImageToGitHub(env: Env, imageBase64: string, filename: string): Promise<string> {
-  // Extraire les données base64 pures (sans le préfixe data:image/...)
-  const base64Data = imageBase64.split(',')[1];
-  if (!base64Data) {
-    throw new Error('Format base64 invalide');
-  }
-
-  const apiUrl = 'https://api.github.com/repos/CollectifIleFeydeau/community-content/contents/images/' + filename;
-  
-  const response = await fetch(apiUrl, {
-    method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
-      'Accept': 'application/vnd.github.v3+json',
-      'Content-Type': 'application/json',
-      'User-Agent': 'Collectif-Feydeau-Worker'
-    },
-    body: JSON.stringify({
-      message: `Add image: ${filename}`,
-      content: base64Data,
-      branch: 'main'
-    })
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Erreur lors de l\'upload de l\'image:', errorText);
-    throw new Error(`Échec de l'upload de l'image: ${response.status} ${response.statusText}`);
-  }
-
-  const result = await response.json() as { content: { download_url: string } };
-  console.log('Image uploadée avec succès:', result.content.download_url);
-  
-  // Retourner l'URL raw GitHub pour accès direct
-  return `https://raw.githubusercontent.com/CollectifIleFeydeau/community-content/main/images/${filename}`;
-}
-
 export default {
   // Fonction principale qui traite toutes les requêtes
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -159,22 +115,10 @@ export default {
         
         console.log(`Création d'une contribution GitHub: ${entry.displayName} (${entry.type})`);
         
-        // Pour les photos avec image, uploader d'abord l'image vers GitHub
+        // Utiliser directement l'URL Cloudinary (plus besoin d'upload vers GitHub)
         let imageUrl = entry.imageUrl;
-        if (entry.type === 'photo' && entry.imageUrl && entry.imageUrl.startsWith('data:image/')) {
-          try {
-            // Générer un nom de fichier unique
-            const timestamp = Date.now();
-            const extension = entry.imageUrl.startsWith('data:image/png') ? 'png' : 'jpg';
-            const filename = `${entry.id}_${timestamp}.${extension}`;
-            
-            console.log(`Upload de l'image vers GitHub: ${filename}`);
-            imageUrl = await uploadImageToGitHub(env, entry.imageUrl, filename);
-            console.log(`Image uploadée: ${imageUrl}`);
-          } catch (error) {
-            console.error('Erreur lors de l\'upload de l\'image:', error);
-            // On continue avec l'image base64 en fallback
-          }
+        if (entry.type === 'photo' && entry.imageUrl) {
+          console.log(`Image URL reçue: ${imageUrl}`);
         }
         
         // Formater le titre de l'issue
