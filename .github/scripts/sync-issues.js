@@ -72,25 +72,46 @@ function convertIssueToEntry(issue) {
     // Pour les photos, chercher une image dans le contenu ou le corps
     let imageUrl = null;
     
-    // Format markdown standard: ![Image](data:image/...)
-    const markdownMatch = body.match(/!\[(?:Image|Photo|image|photo)?\]\((data:image\/[^;]+;base64,[^)]+)\)/);
-    if (markdownMatch && markdownMatch[1]) {
-      imageUrl = markdownMatch[1];
+    // 1. Format Cloudinary: ![Photo](https://res.cloudinary.com/...)
+    const cloudinaryMatch = body.match(/!\[(?:Image|Photo|image|photo)?\]\((https:\/\/res\.cloudinary\.com\/[^)]+)\)/);
+    if (cloudinaryMatch && cloudinaryMatch[1]) {
+      imageUrl = cloudinaryMatch[1];
+      console.log(`Image Cloudinary trouvée pour l'issue #${issue.number}: ${imageUrl}`);
     }
     
-    // Format HTML: <img src="data:image/..." />
+    // 2. Format Cloudinary HTML: <img src="https://res.cloudinary.com/..." />
+    if (!imageUrl) {
+      const cloudinaryHtmlMatch = body.match(/<img[^>]*src=["']?(https:\/\/res\.cloudinary\.com\/[^"'\s>]+)["']?[^>]*>/);
+      if (cloudinaryHtmlMatch && cloudinaryHtmlMatch[1]) {
+        imageUrl = cloudinaryHtmlMatch[1];
+        console.log(`Image Cloudinary HTML trouvée pour l'issue #${issue.number}: ${imageUrl}`);
+      }
+    }
+    
+    // 3. Format markdown standard: ![Image](data:image/...) [LEGACY - pour compatibilité]
+    if (!imageUrl) {
+      const markdownMatch = body.match(/!\[(?:Image|Photo|image|photo)?\]\((data:image\/[^;]+;base64,[^)]+)\)/);
+      if (markdownMatch && markdownMatch[1]) {
+        imageUrl = markdownMatch[1];
+        console.log(`Image base64 trouvée pour l'issue #${issue.number}`);
+      }
+    }
+    
+    // 4. Format HTML: <img src="data:image/..." /> [LEGACY - pour compatibilité]
     if (!imageUrl) {
       const htmlMatch = body.match(/<img[^>]*src=["']?(data:image\/[^;]+;base64,[^"'\s>]+)["']?[^>]*>/);
       if (htmlMatch && htmlMatch[1]) {
         imageUrl = htmlMatch[1];
+        console.log(`Image base64 HTML trouvée pour l'issue #${issue.number}`);
       }
     }
     
-    // Format brut: data:image/...;base64,...
+    // 5. Format brut: data:image/...;base64,... [LEGACY - pour compatibilité]
     if (!imageUrl) {
       const rawMatch = body.match(/(data:image\/[^;]+;base64,[^\s"'<>]+)/);
       if (rawMatch && rawMatch[1]) {
         imageUrl = rawMatch[1];
+        console.log(`Image base64 brute trouvée pour l'issue #${issue.number}`);
       }
     }
     
