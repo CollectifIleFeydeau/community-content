@@ -48,7 +48,7 @@ jobs:
           npm install node-fetch@2 sharp uuid
 
       - name: Process pending contributions
-        run: node scripts/process-contributions.js
+        run: node .github/scripts/process-contribution.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
@@ -56,6 +56,6 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add public/data/ public/images/
+          git add entries.json images/ thumbnails/
           git diff --quiet && git diff --staged --quiet || git commit -m "Update community content [skip ci]"
           git push

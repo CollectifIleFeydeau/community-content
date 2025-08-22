@@ -22,13 +22,6 @@ interface DeleteIssueData {
   issueNumber: string;
 }
 
-// Interface pour les données de like/unlike
-interface LikeIssueData {
-  issueNumber: string;
-  sessionId: string;
-  action: 'like' | 'unlike';
-}
-
 // Interface pour les données de création de contribution
 interface CreateContributionData {
   entry: {
@@ -39,7 +32,6 @@ interface CreateContributionData {
     description: string;
     createdAt: string;
     timestamp: number;
-    likes: number;
     moderation: string;
     imageUrl?: string; // Added imageUrl property
   };
@@ -144,7 +136,6 @@ ${body}`;
 
 **Créé le:** ${entry.createdAt}
 **Timestamp:** ${entry.timestamp}
-**Likes:** ${entry.likes}
 **Modération:** ${entry.moderation}
 **ID:** ${entry.id}
 **Session:** ${contributionData.sessionId}`;
@@ -210,127 +201,6 @@ ${body}`;
           headers: corsHeaders
         });
         
-      } else if (path === "/like-issue") {
-        // Gestion des likes
-        const likeData = requestData as LikeIssueData;
-        
-        // Valider les données
-        if (!likeData.issueNumber || !likeData.sessionId || !likeData.action) {
-          return new Response("Données invalides: numéro d'issue, sessionId et action requis", { 
-            status: 400,
-            headers: corsHeaders
-          });
-        }
-        
-        console.log(`${likeData.action === 'like' ? 'Like' : 'Unlike'} de l'issue GitHub #${likeData.issueNumber} par ${likeData.sessionId}`);
-        
-        try {
-          // 1. Récupérer l'issue actuelle pour obtenir les données existantes
-          const issueResponse = await fetch(
-            `https://api.github.com/repos/CollectifIleFeydeau/community-content/issues/${likeData.issueNumber}`,
-            {
-              headers: {
-                "Accept": "application/vnd.github.v3+json",
-                "Authorization": `token ${env.GITHUB_TOKEN}`,
-                "User-Agent": "Cloudflare-Worker-CollectifFeydeau"
-              }
-            }
-          );
-          
-          if (!issueResponse.ok) {
-            return new Response(`Erreur lors de la récupération de l'issue: ${issueResponse.status}`, {
-              status: issueResponse.status,
-              headers: corsHeaders
-            });
-          }
-          
-          const issue = await issueResponse.json() as { body?: string };
-          
-          // 2. Extraire les données de likes existantes du corps de l'issue
-          const body = issue.body || '';
-          let likesCount = 0;
-          let likedBy: string[] = [];
-          
-          // Rechercher les métadonnées de likes dans le corps de l'issue
-          const likesMatch = body.match(/\*\*Likes:\*\*\s*(\d+)/);
-          if (likesMatch && likesMatch[1]) {
-            likesCount = parseInt(likesMatch[1], 10);
-          }
-          
-          const likedByMatch = body.match(/\*\*LikedBy:\*\*\s*(.+)/);
-          if (likedByMatch && likedByMatch[1]) {
-            likedBy = likedByMatch[1].split(',').map((id: string) => id.trim());
-          }
-          
-          // 3. Mettre à jour les données de likes en fonction de l'action
-          if (likeData.action === 'like') {
-            if (!likedBy.includes(likeData.sessionId)) {
-              likedBy.push(likeData.sessionId);
-              likesCount++;
-            }
-          } else { // unlike
-            likedBy = likedBy.filter(id => id !== likeData.sessionId);
-            if (likesCount > 0) likesCount--;
-          }
-          
-          // 4. Construire le nouveau corps de l'issue avec les données de likes mises à jour
-          let newBody = body;
-          
-          // Mettre à jour ou ajouter le nombre de likes
-          if (likesMatch) {
-            newBody = newBody.replace(/\*\*Likes:\*\*\s*\d+/, `**Likes:** ${likesCount}`);
-          } else {
-            // Ajouter à la fin du corps
-            newBody += `\n\n**Likes:** ${likesCount}`;
-          }
-          
-          // Mettre à jour ou ajouter la liste des utilisateurs qui ont liké
-          if (likedByMatch) {
-            newBody = newBody.replace(/\*\*LikedBy:\*\*\s*.+/, `**LikedBy:** ${likedBy.join(', ')}`);
-          } else if (likedBy.length > 0) {
-            // Ajouter à la fin du corps
-            newBody += `\n**LikedBy:** ${likedBy.join(', ')}`;
-          }
-          
-          // 5. Mettre à jour l'issue avec le nouveau corps
-          githubResponse = await fetch(
-            `https://api.github.com/repos/CollectifIleFeydeau/community-content/issues/${likeData.issueNumber}`,
-            {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json",
-                "Accept": "application/vnd.github.v3+json",
-                "Authorization": `token ${env.GITHUB_TOKEN}`,
-                "User-Agent": "Cloudflare-Worker-CollectifFeydeau"
-              },
-              body: JSON.stringify({
-                body: newBody
-              })
-            }
-          );
-          
-          // 6. Préparer la réponse avec les données mises à jour
-          if (githubResponse.ok) {
-            return new Response(JSON.stringify({
-              success: true,
-              likes: likesCount,
-              likedBy: likedBy,
-              isLikedByCurrentUser: likedBy.includes(likeData.sessionId)
-            }), {
-              status: 200,
-              headers: {
-                "Content-Type": "application/json",
-                ...corsHeaders
-              }
-            });
-          }
-        } catch (error) {
-          console.error(`Erreur lors de la gestion du like: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
-          return new Response(`Erreur lors de la gestion du like: ${error instanceof Error ? error.message : 'Erreur inconnue'}`, {
-            status: 500,
-            headers: corsHeaders
-          });
-        }
       } else if (path === "/delete-issue") {
         // Suppression d'une issue
         const deleteData = requestData as DeleteIssueData;

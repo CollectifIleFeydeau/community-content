@@ -33,7 +33,6 @@ const API_URL = (typeof window !== 'undefined' && window.location.hostname.inclu
 
 // Clés pour le stockage local
 const COMMUNITY_ENTRIES_KEY = 'community_entries';
-const COMMUNITY_LIKES_KEY = 'community_liked_entries'; // Clé pour stocker les likes
 
 /**
  * Récupérer les entrées stockées localement ou renvoyer un tableau vide
@@ -45,12 +44,7 @@ const getStoredEntries = () => {
     const storedEntries = localStorage.getItem(COMMUNITY_ENTRIES_KEY);
     const entries = storedEntries ? JSON.parse(storedEntries) : [];
     
-    // Ajouter l'information des likes pour l'utilisateur actuel
-    const likedEntries = getLikedEntries();
-    return entries.map(entry => ({
-      ...entry,
-      isLikedByCurrentUser: likedEntries.includes(entry.id)
-    }));
+    return entries;
   } catch (error) {
     console.error('Erreur lors de la récupération des entrées locales:', error);
     return [];
@@ -64,39 +58,9 @@ const saveEntries = (entries) => {
   try {
     if (typeof localStorage === 'undefined') return;
     
-    // Retirer la propriété isLikedByCurrentUser avant de sauvegarder
-    const entriesToSave = entries.map(({ isLikedByCurrentUser, ...rest }) => rest);
-    localStorage.setItem(COMMUNITY_ENTRIES_KEY, JSON.stringify(entriesToSave));
+    localStorage.setItem(COMMUNITY_ENTRIES_KEY, JSON.stringify(entries));
   } catch (error) {
     console.error('Erreur lors de la sauvegarde des entrées locales:', error);
-  }
-};
-
-/**
- * Récupérer les IDs des entrées aimées par l'utilisateur
- */
-const getLikedEntries = () => {
-  try {
-    if (typeof localStorage === 'undefined') return [];
-    
-    const likedEntries = localStorage.getItem(COMMUNITY_LIKES_KEY);
-    return likedEntries ? JSON.parse(likedEntries) : [];
-  } catch (error) {
-    console.error('Erreur lors de la récupération des likes:', error);
-    return [];
-  }
-};
-
-/**
- * Sauvegarder les IDs des entrées aimées par l'utilisateur
- */
-const saveLikedEntries = (entryIds) => {
-  try {
-    if (typeof localStorage === 'undefined') return;
-    
-    localStorage.setItem(COMMUNITY_LIKES_KEY, JSON.stringify(entryIds));
-  } catch (error) {
-    console.error('Erreur lors de la sauvegarde des likes:', error);
   }
 };
 
@@ -110,9 +74,6 @@ async function fetchCommunityEntries() {
         (typeof process !== 'undefined' && process.env.NODE_ENV !== 'development') || 
         (typeof process !== 'undefined' && process.env.VITE_USE_API === 'true')) {
       
-      // Récupérer les likes de l'utilisateur actuel
-      const likedEntries = getLikedEntries();
-      
       // Récupérer les données depuis GitHub
       console.log(`[CommunityService] Récupération des données depuis ${BASE_URL}/entries.json`);
       const response = await fetch(`${BASE_URL}/entries.json`);
@@ -125,8 +86,7 @@ async function fetchCommunityEntries() {
       
       // Formater les données pour correspondre à notre structure
       const formattedEntries = data.entries.map(entry => ({
-        ...entry,
-        isLikedByCurrentUser: likedEntries.includes(entry.id)
+        ...entry
       }));
       
       // Sauvegarder les données dans le stockage local pour une utilisation hors ligne
@@ -276,101 +236,6 @@ function removeEntryFromLocalStorage(entryId) {
 }
 
 /**
- * Ajoute ou retire un like sur une entrée
- */
-async function toggleLike(entryId, sessionId) {
-  try {
-    // Récupérer les entrées actuelles
-    const entries = await fetchCommunityEntries();
-    const entry = entries.find(e => e.id === entryId);
-    
-    if (!entry) {
-      throw new Error(`Entrée non trouvée: ${entryId}`);
-    }
-    
-    // Récupérer les likes actuels de l'utilisateur
-    const likedEntries = getLikedEntries();
-    const isCurrentlyLiked = likedEntries.includes(entryId);
-    
-    // Inverser l'état du like
-    const isLiking = !isCurrentlyLiked;
-    
-    // Mettre à jour l'état local immédiatement pour une meilleure UX
-    if (isLiking) {
-      // Ajouter le like
-      if (!likedEntries.includes(entryId)) {
-        likedEntries.push(entryId);
-        saveLikedEntries(likedEntries);
-      }
-      
-      // Mettre à jour l'entrée localement
-      entry.likes = (entry.likes || 0) + 1;
-      entry.isLikedByCurrentUser = true;
-    } else {
-      // Retirer le like
-      const updatedLikes = likedEntries.filter(id => id !== entryId);
-      saveLikedEntries(updatedLikes);
-      
-      // Mettre à jour l'entrée localement
-      entry.likes = Math.max(0, (entry.likes || 0) - 1);
-      entry.isLikedByCurrentUser = false;
-    }
-    
-    // Mettre à jour le stockage local
-    saveEntries(entries);
-    
-    // En production ou si l'API est activée, envoyer la mise à jour au serveur
-    if ((typeof window !== 'undefined' && window.location.hostname.includes('github.io')) || 
-        (typeof process !== 'undefined' && process.env.NODE_ENV !== 'development') || 
-        (typeof process !== 'undefined' && process.env.VITE_USE_API === 'true')) {
-      
-      // Extraire le numéro d'issue si l'ID est au format "issue-X"
-      let issueNumber = entryId;
-      if (entryId.startsWith('issue-')) {
-        issueNumber = entryId.replace('issue-', '');
-      }
-      
-      // Envoyer la requête au Worker Cloudflare
-      const response = await fetch(`${WORKER_URL}/like-issue`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          issueNumber: issueNumber,
-          sessionId: sessionId,
-          action: isLiking ? 'like' : 'unlike'
-        })
-      });
-      
-      if (!response.ok) {
-        console.error(`[CommunityService] Erreur HTTP lors de la mise à jour du like: ${response.status}`);
-        // En cas d'erreur, on pourrait revenir à l'état précédent, mais pour simplifier,
-        // on laisse l'état local tel quel et on considère que la synchronisation se fera plus tard
-        return entry;
-      }
-      
-      // Récupérer les données mises à jour depuis le serveur
-      const responseData = await response.json();
-      
-      // Mettre à jour l'entrée avec les données du serveur
-      entry.likes = responseData.likes || entry.likes;
-      entry.isLikedByCurrentUser = responseData.isLikedByCurrentUser !== undefined 
-        ? responseData.isLikedByCurrentUser 
-        : entry.isLikedByCurrentUser;
-      
-      // Mettre à jour le stockage local avec les données du serveur
-      saveEntries(entries);
-    }
-    
-    return entry;
-  } catch (error) {
-    console.error('Erreur lors de la mise à jour du like:', error);
-    throw error;
-  }
-}
-
-/**
  * Soumet une nouvelle contribution communautaire
  * @param {Object} params Paramètres de la soumission
  * @returns {Promise<Object>} La contribution créée
@@ -428,7 +293,6 @@ async function submitContribution(params) {
         displayName: params.displayName || 'Anonyme',
         createdAt: new Date().toISOString(),
         likes: 0,
-        isLikedByCurrentUser: false,
         moderation: {
           status: 'approved',
           moderatedAt: new Date().toISOString()
@@ -464,7 +328,6 @@ async function submitContribution(params) {
       displayName: params.displayName || 'Anonyme',
       createdAt: new Date().toISOString(),
       likes: 0,
-      isLikedByCurrentUser: false,
       moderation: {
         status: 'approved',
         moderatedAt: new Date().toISOString()
@@ -595,7 +458,6 @@ async function uploadImage(file) {
 module.exports = {
   fetchCommunityEntries,
   deleteCommunityEntry,
-  toggleLike,
   submitContribution,
   moderateContent,
   uploadImage,
