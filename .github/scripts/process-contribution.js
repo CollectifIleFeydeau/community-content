@@ -8,13 +8,11 @@ const axios = require('axios');
 const sharp = require('sharp');
 
 // Chemins des fichiers et dossiers
-const DATA_DIR = path.join(process.cwd(), 'data');
 const IMAGES_DIR = path.join(process.cwd(), 'images');
 const THUMBNAILS_DIR = path.join(process.cwd(), 'thumbnails');
-const CONTENT_FILE = path.join(DATA_DIR, 'community-content.json');
+const CONTENT_FILE = path.join(process.cwd(), 'entries.json');
 
 // Création des dossiers s'ils n'existent pas
-fs.ensureDirSync(DATA_DIR);
 fs.ensureDirSync(IMAGES_DIR);
 fs.ensureDirSync(THUMBNAILS_DIR);
 
@@ -79,8 +77,8 @@ async function main() {
       console.log(`Miniature créée: ${thumbnailPath}`);
       
       // Ajouter les URLs des images à l'entrée
-      newEntry.imageUrl = `https://github.com/CollectifIleFeydeau/community-content/raw/main/images/${contributionId}.jpg`;
-      newEntry.thumbnailUrl = `https://github.com/CollectifIleFeydeau/community-content/raw/main/thumbnails/${contributionId}.jpg`;
+      newEntry.imageUrl = `https://github.com/CollectifFeydeau/community-content/raw/main/images/${contributionId}.jpg`;
+      newEntry.thumbnailUrl = `https://github.com/CollectifFeydeau/community-content/raw/main/thumbnails/${contributionId}.jpg`;
       
     } catch (error) {
       console.error('Erreur lors du traitement de l\'image:', error);

@@ -43,12 +43,8 @@ jobs:
             fi
           done
 
-      - name: Install additional dependencies for processing
-        run: |
-          npm install node-fetch@2 sharp uuid
-
-      - name: Process pending contributions
-        run: node .github/scripts/process-contribution.js
+      - name: Sync GitHub issues to entries.json
+        run: node .github/scripts/sync-issues.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
