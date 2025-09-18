@@ -107,10 +107,12 @@ export default {
         
         console.log(`Création d'une contribution GitHub: ${entry.displayName} (${entry.type})`);
         
-        // Utiliser directement l'URL Cloudinary (plus besoin d'upload vers GitHub)
+        // 🌩️ CLOUDINARY: Utiliser directement l'URL Cloudinary (plus besoin d'upload vers GitHub)
+        // Les images sont hébergées sur Cloudinary, pas sur GitHub
+        // Format URL: https://res.cloudinary.com/dpatqkgsc/image/upload/v{version}/{public_id}.{format}
         let imageUrl = entry.imageUrl;
         if (entry.type === 'photo' && entry.imageUrl) {
-          console.log(`Image URL reçue: ${imageUrl}`);
+          console.log(`🌩️ Image URL Cloudinary reçue: ${imageUrl}`);
         }
         
         // Formater le titre de l'issue

@@ -11,8 +11,26 @@ const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 const REPO_OWNER = 'CollectifFeydeau';
 const REPO_NAME = 'community-content';
 
+/**
+ * Script unifié pour traiter les contributions communautaires
+ * Remplace tous les anciens scripts (process-contribution.js, sync-issues.js, etc.)
+ * 
+ * CLOUDINARY INTEGRATION:
+ * - Les images sont uploadées vers Cloudinary depuis le frontend
+ * - Ce script récupère les URLs Cloudinary depuis les issues GitHub
+ * - Pas de traitement d'image nécessaire (Cloudinary gère tout)
+ * - Fallback vers base64 pour rétrocompatibilité
+ * 
+ * Fonctionnalités :
+ * - Récupère les issues GitHub ouvertes
+ * - Parse le contenu des contributions (texte + URLs Cloudinary)
+ * - Traite les images base64 (ancien système uniquement)
+ * - Met à jour entries.json avec URLs Cloudinary
+ * - Ferme les issues traitées
+ */
+
 async function main() {
-  console.log('🚀 Traitement unifié des contributions...');
+  console.log(' Traitement unifié des contributions...');
   
   try {
     // 1. Récupérer toutes les issues avec le label "contribution"
@@ -23,7 +41,7 @@ async function main() {
       state: 'open'
     });
     
-    console.log(`📋 ${issues.length} contributions trouvées`);
+    console.log(` ${issues.length} contributions trouvées`);
     
     if (issues.length === 0) {
       console.log('✅ Aucune nouvelle contribution à traiter');
@@ -79,6 +97,20 @@ async function processIssue(issue, entries) {
     
     // Parser le contenu de l'issue
     const contribution = parseIssueBody(issue.body);
+    
+    // Fallback: extraire type et nom depuis le titre si pas trouvé dans le body
+    if (!contribution.type || !contribution.displayName) {
+      const titleMatch = issue.title.match(/^(\w+):\s*(.+)$/);
+      if (titleMatch) {
+        if (!contribution.type) contribution.type = titleMatch[1];
+        if (!contribution.displayName) contribution.displayName = titleMatch[2];
+      }
+    }
+    
+    // Valeurs par défaut
+    if (!contribution.displayName) contribution.displayName = 'Anonyme';
+    if (!contribution.type) contribution.type = 'photo';
+    
     contribution.id = `contrib-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     contribution.timestamp = issue.created_at;
     contribution.likes = 0;
@@ -88,9 +120,18 @@ async function processIssue(issue, entries) {
       moderatedAt: new Date().toISOString()
     };
     
-    // Traiter l'image si c'est une photo
-    if (contribution.type === 'photo' && contribution.imageData) {
-      await processImage(contribution);
+    // 🌩️ CLOUDINARY: Traiter l'image si c'est une photo
+    if (contribution.type === 'photo') {
+      if (contribution.imageUrl) {
+        // 🌩️ CLOUDINARY: URL Cloudinary - utiliser directement (pas de traitement nécessaire)
+        // Cloudinary gère automatiquement le redimensionnement et l'optimisation
+        console.log(`🌩️ Utilisation URL Cloudinary: ${contribution.imageUrl}`);
+        contribution.thumbnailUrl = contribution.imageUrl; // Même URL pour thumbnail
+      } else if (contribution.imageData) {
+        // 📷 LEGACY: Base64 - traiter et sauvegarder (ancien système)
+        console.log(`📷 Traitement image base64 (ancien système)`);
+        await processImage(contribution);
+      }
     }
     
     // Ajouter à entries
@@ -104,14 +145,16 @@ async function processIssue(issue, entries) {
 }
 
 function parseIssueBody(body) {
-  // Parser le format markdown de l'issue
+  // Parser le format markdown de l'issue (format Worker Cloudflare)
   const contribution = {};
   
-  // Extraire les champs avec regex pour plus de flexibilité
+  // Extraire les champs avec regex pour correspondre au format Worker
   const typeMatch = body.match(/\*\*Type:\*\*\s*([^\n]+)/);
   if (typeMatch) contribution.type = typeMatch[1].trim();
   
-  const nameMatch = body.match(/\*\*Nom:\*\*\s*([^\n]+)/);
+  // Essayer d'abord "Nom d'affichage" puis "Nom" en fallback
+  let nameMatch = body.match(/\*\*Nom d'affichage:\*\*\s*([^\n]+)/);
+  if (!nameMatch) nameMatch = body.match(/\*\*Nom:\*\*\s*([^\n]+)/);
   if (nameMatch) contribution.displayName = nameMatch[1].trim();
   
   const locationMatch = body.match(/\*\*Lieu:\*\*\s*([^\n]+)/);
@@ -120,8 +163,12 @@ function parseIssueBody(body) {
   const eventMatch = body.match(/\*\*Événement:\*\*\s*([^\n]+)/);
   if (eventMatch) contribution.eventId = eventMatch[1].trim();
   
-  // Chercher le contenu/description/témoignage (peut être multi-ligne)
-  const contentMatch = body.match(/\*\*(?:Description|Contenu|Témoignage):\*\*\s*([^\n]+(?:\n(?!\*\*)[^\n]*)*)/);
+  // Chercher la description (format Worker)
+  let contentMatch = body.match(/\*\*Description:\*\*\s*([^\n]+(?:\n(?!\*\*)[^\n]*)*)/);
+  if (!contentMatch) {
+    // Fallback vers autres formats
+    contentMatch = body.match(/\*\*(?:Contenu|Témoignage):\*\*\s*([^\n]+(?:\n(?!\*\*)[^\n]*)*)/);
+  }
   if (contentMatch) {
     contribution.content = contentMatch[1].trim();
   }
@@ -135,10 +182,19 @@ function parseIssueBody(body) {
     }
   }
   
-  // Extraire l'image
-  const imageMatch = body.match(/data:image\/[^;]+;base64,([^)]+)/);
-  if (imageMatch) {
-    contribution.imageData = imageMatch[1];
+  // 🌩️ CLOUDINARY: Extraire l'image (Cloudinary en priorité, base64 en fallback)
+  // Cloudinary est le système principal depuis 2025 - URLs format: https://res.cloudinary.com/dpatqkgsc/...
+  const cloudinaryMatch = body.match(/https:\/\/res\.cloudinary\.com\/[^\s\n)]+/);
+  if (cloudinaryMatch) {
+    contribution.imageUrl = cloudinaryMatch[0];
+    console.log(`🌩️ URL Cloudinary trouvée: ${contribution.imageUrl}`);
+  } else {
+    // 📷 LEGACY: Fallback vers base64 pour rétrocompatibilité (ancien système)
+    const imageMatch = body.match(/data:image\/[^;]+;base64,([^)]+)/);
+    if (imageMatch) {
+      contribution.imageData = imageMatch[1];
+      console.log(`📷 Image base64 trouvée (ancien système)`);
+    }
   }
   
   console.log(`📝 Parsing issue body:`, body);
