@@ -2,15 +2,15 @@ name: Synchronize Issues to entries.json
 
 on:
   issues:
-    types: [opened, closed, edited, labeled]  # Déclenchement immédiat
+    types: [opened, closed]  # Seulement création et fermeture d'issues
   workflow_dispatch:  # Manuel
   schedule:
-    - cron: '*/2 * * * *'  # Vérifier toutes les 2 minutes (au lieu de 5)
+    - cron: '*/5 * * * *'  # Vérifier toutes les 5 minutes (backup)
 
-# Éviter les exécutions concurrentes sur la même branche
+# Éviter les exécutions concurrentes - UN SEUL workflow à la fois
 concurrency:
-  group: sync-entries-${{ github.ref }}
-  cancel-in-progress: true  # Annuler les anciens runs pour éviter l'accumulation
+  group: sync-entries
+  cancel-in-progress: false  # Attendre la fin du workflow en cours
 
 jobs:
   sync-entries:
@@ -62,7 +62,7 @@ jobs:
             curl -X POST \
               -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -H "Accept: application/vnd.github.v3+json" \
-              https://api.github.com/repos/CollectifFeydeau/1Hall1Artiste/dispatches \
+              https://api.github.com/repos/CollectifIleFeydeau/1Hall1Artiste/dispatches \
               -d '{"event_type":"community-content-updated"}' &
             
             echo "✅ Synchronisation déclenchée dans l'app principale"

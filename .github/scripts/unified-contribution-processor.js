@@ -8,7 +8,7 @@ const path = require('path');
 const sharp = require('sharp');
 
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-const REPO_OWNER = 'CollectifFeydeau';
+const REPO_OWNER = 'CollectifIleFeydeau';
 const REPO_NAME = 'community-content';
 
 /**
