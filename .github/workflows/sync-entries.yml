@@ -2,8 +2,10 @@ name: Synchronize Issues to entries.json
 
 on:
   issues:
-    types: [opened, closed]  # Réduire aux événements essentiels
-  workflow_dispatch:  # Permet de déclencher manuellement le workflow
+    types: [opened, closed, edited, labeled]  # Déclenchement immédiat
+  workflow_dispatch:  # Manuel
+  schedule:
+    - cron: '*/2 * * * *'  # Vérifier toutes les 2 minutes (au lieu de 5)
 
 # Éviter les exécutions concurrentes sur la même branche
 concurrency:
@@ -40,8 +42,10 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Synchronize issues to entries.json
-        run: node .github/scripts/sync-issues.js
+      - name: Process contributions from issues
+        run: |
+          # Script unifié qui remplace tous les autres
+          node .github/scripts/unified-contribution-processor.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -49,11 +53,19 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add entries.json
+          git add entries.json images/ thumbnails/
           if ! git diff --staged --quiet; then
             git commit -m "Update entries.json from GitHub issues [skip ci]"
-            git pull --rebase origin main || true
             git push origin main
+            
+            # Déclencher IMMÉDIATEMENT la synchronisation dans l'app principale
+            curl -X POST \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              https://api.github.com/repos/CollectifFeydeau/1Hall1Artiste/dispatches \
+              -d '{"event_type":"community-content-updated"}' &
+            
+            echo "✅ Synchronisation déclenchée dans l'app principale"
           else
             echo "No changes to commit"
           fi

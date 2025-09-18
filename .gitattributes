@@ -1,0 +1,14 @@
+# Optimisations Git pour le repo community-content
+
+# Traiter entries.json comme un fichier binaire pour éviter les diffs lents
+entries.json binary
+
+# Optimiser les images
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.gif binary
+*.webp binary
+
+# Activer LFS pour les gros fichiers (optionnel)
+# entries.json filter=lfs diff=lfs merge=lfs -text
