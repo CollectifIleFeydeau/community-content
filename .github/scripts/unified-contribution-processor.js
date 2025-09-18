@@ -116,8 +116,18 @@ async function main() {
     // 3. Traiter les issues ouvertes (nouvelles contributions)
     if (openIssues.length > 0) {
       console.log(`🔄 Traitement de ${openIssues.length} contributions ouvertes...`);
-      for (const issue of openIssues) {
-        await processIssue(issue, entries);
+      
+      // Filtrer les issues déjà traitées
+      const existingIds = new Set(entries.entries.map(entry => entry.id));
+      const newIssues = openIssues.filter(issue => !existingIds.has(`issue-${issue.number}`));
+      
+      if (newIssues.length > 0) {
+        console.log(`📝 ${newIssues.length} nouvelles contributions à traiter`);
+        for (const issue of newIssues) {
+          await processIssue(issue, entries);
+        }
+      } else {
+        console.log('ℹ️ Toutes les contributions ouvertes sont déjà traitées');
       }
     } else {
       console.log('ℹ️ Aucune contribution ouverte à traiter');
@@ -145,17 +155,10 @@ async function main() {
     fs.writeFileSync(entriesPath, JSON.stringify(entries, null, 1));
     console.log('💾 entries.json mis à jour');
     
-    // 6. Fermer les issues ouvertes traitées
-    for (const issue of openIssues) {
-      await octokit.rest.issues.update({
-        owner: REPO_OWNER,
-        repo: REPO_NAME,
-        issue_number: issue.number,
-        state: 'closed',
-        labels: ['contribution', 'processed']
-      });
-      console.log(`✅ Issue #${issue.number} fermée`);
-    }
+    // 6. Les issues restent ouvertes pour traçabilité
+    // Note: Les issues ne sont pas fermées automatiquement pour éviter les problèmes de permissions
+    // Elles peuvent être fermées manuellement si nécessaire
+    console.log(`ℹ️ ${openIssues.length} issues traitées restent ouvertes pour traçabilité`);
     
   } catch (error) {
     console.error('❌ Erreur:', error);
