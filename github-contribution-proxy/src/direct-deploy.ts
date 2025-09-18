@@ -18,6 +18,7 @@ interface DirectDeployEntry {
     status: 'approved' | 'pending' | 'rejected';
     moderatedAt: string | null;
   };
+  isTemporary?: boolean;
 }
 
 /**
@@ -61,9 +62,11 @@ export async function updateGitHubPagesDirect(entry: DirectDeployEntry, githubTo
       currentContent.entries[existingIndex] = entry;
       console.log('[DirectDeploy] Entrée mise à jour:', entry.id);
     } else {
-      // Ajouter nouvelle entrée
-      currentContent.entries.unshift(entry);
-      console.log('[DirectDeploy] Nouvelle entrée ajoutée:', entry.id);
+      // Ajouter nouvelle entrée SANS le flag temporaire
+      const cleanEntry = { ...entry };
+      delete cleanEntry.isTemporary;
+      currentContent.entries.unshift(cleanEntry);
+      console.log('[DirectDeploy] Nouvelle entrée ajoutée (sans flag temporaire):', entry.id);
     }
     
     // Mettre à jour le timestamp
@@ -99,6 +102,10 @@ export async function updateGitHubPagesDirect(entry: DirectDeployEntry, githubTo
     }
 
     console.log('[DirectDeploy] ✅ Déploiement direct réussi pour:', entry.id);
+    
+    // 6. AUSSI mettre à jour le main branch pour la synchronisation
+    await updateMainBranch(entry, githubToken);
+    
     return true;
     
   } catch (error) {
