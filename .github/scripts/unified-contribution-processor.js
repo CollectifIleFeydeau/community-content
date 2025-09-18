@@ -33,19 +33,76 @@ async function main() {
   console.log(' Traitement unifié des contributions...');
   
   try {
-    // 1. Récupérer toutes les issues avec le label "contribution"
-    const { data: issues } = await octokit.rest.issues.listForRepo({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      labels: 'contribution',
-      state: 'open'
-    });
+    // Debug: Vérifier le token et les permissions
+    console.log('🔍 Vérification du token GitHub...');
+    console.log(`Repository cible: ${REPO_OWNER}/${REPO_NAME}`);
+    console.log(`Token présent: ${process.env.GITHUB_TOKEN ? 'OUI' : 'NON'}`);
     
-    console.log(` ${issues.length} contributions trouvées`);
+    // Test d'accès au repository
+    try {
+      const { data: repo } = await octokit.rest.repos.get({
+        owner: REPO_OWNER,
+        repo: REPO_NAME
+      });
+      console.log(`✅ Repository trouvé: ${repo.full_name}`);
+      console.log(`📊 Issues activées: ${repo.has_issues}`);
+    } catch (repoError) {
+      console.error('❌ Erreur accès repository:', repoError.message);
+      console.error('💡 Vérifiez que le repository existe et que le token a les bonnes permissions');
+      throw repoError;
+    }
     
-    if (issues.length === 0) {
-      console.log('✅ Aucune nouvelle contribution à traiter');
-      return;
+    // 1. Récupérer toutes les issues avec le label "contribution" (ouvertes ET fermées)
+    console.log('📋 Recherche des issues avec label "contribution"...');
+    
+    let openIssues = [];
+    let closedIssues = [];
+    
+    try {
+      const { data: openData } = await octokit.rest.issues.listForRepo({
+        owner: REPO_OWNER,
+        repo: REPO_NAME,
+        labels: 'contribution',
+        state: 'open'
+      });
+      openIssues = openData;
+      console.log(`✅ ${openIssues.length} contributions ouvertes trouvées`);
+    } catch (openError) {
+      console.error('❌ Erreur récupération issues ouvertes:', openError.message);
+      // Continuer même si erreur
+    }
+    
+    try {
+      const { data: closedData } = await octokit.rest.issues.listForRepo({
+        owner: REPO_OWNER,
+        repo: REPO_NAME,
+        labels: 'contribution',
+        state: 'closed'
+      });
+      closedIssues = closedData;
+      console.log(`✅ ${closedIssues.length} contributions fermées trouvées`);
+    } catch (closedError) {
+      console.error('❌ Erreur récupération issues fermées:', closedError.message);
+      // Continuer même si erreur
+    }
+    
+    // Debug: Lister toutes les issues pour voir ce qui existe
+    try {
+      const { data: allIssues } = await octokit.rest.issues.listForRepo({
+        owner: REPO_OWNER,
+        repo: REPO_NAME,
+        state: 'all',
+        per_page: 10
+      });
+      console.log(`🔍 Total issues dans le repository: ${allIssues.length}`);
+      if (allIssues.length > 0) {
+        console.log('📝 Exemples d\'issues trouvées:');
+        allIssues.slice(0, 3).forEach(issue => {
+          console.log(`  - #${issue.number}: "${issue.title}" [${issue.state}] Labels: ${issue.labels.map(l => l.name).join(', ')}`);
+        });
+      }
+    } catch (debugError) {
+      console.warn('⚠️ Impossible de lister toutes les issues:', debugError.message);
     }
     
     // 2. Charger entries.json existant
@@ -56,9 +113,24 @@ async function main() {
       entries = JSON.parse(fs.readFileSync(entriesPath, 'utf8'));
     }
     
-    // 3. Traiter chaque issue
-    for (const issue of issues) {
-      await processIssue(issue, entries);
+    // 3. Traiter les issues ouvertes (nouvelles contributions)
+    if (openIssues.length > 0) {
+      console.log(`🔄 Traitement de ${openIssues.length} contributions ouvertes...`);
+      for (const issue of openIssues) {
+        await processIssue(issue, entries);
+      }
+    } else {
+      console.log('ℹ️ Aucune contribution ouverte à traiter');
+    }
+    
+    // 4. Marquer les issues fermées comme "rejected" dans entries.json
+    if (closedIssues.length > 0) {
+      console.log(`🗑️ Traitement de ${closedIssues.length} contributions fermées...`);
+      for (const closedIssue of closedIssues) {
+        await markIssueAsRejected(closedIssue, entries);
+      }
+    } else {
+      console.log('ℹ️ Aucune contribution fermée à traiter');
     }
     
     // 4. Limiter le nombre d'entrées pour éviter un fichier trop volumineux
@@ -73,8 +145,8 @@ async function main() {
     fs.writeFileSync(entriesPath, JSON.stringify(entries, null, 1));
     console.log('💾 entries.json mis à jour');
     
-    // 5. Fermer les issues traitées
-    for (const issue of issues) {
+    // 6. Fermer les issues ouvertes traitées
+    for (const issue of openIssues) {
       await octokit.rest.issues.update({
         owner: REPO_OWNER,
         repo: REPO_NAME,
@@ -111,7 +183,8 @@ async function processIssue(issue, entries) {
     if (!contribution.displayName) contribution.displayName = 'Anonyme';
     if (!contribution.type) contribution.type = 'photo';
     
-    contribution.id = `contrib-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Utiliser l'ID basé sur le numéro d'issue pour permettre la suppression
+    contribution.id = `issue-${issue.number}`;
     contribution.timestamp = issue.created_at;
     contribution.likes = 0;
     contribution.likedBy = [];
@@ -239,6 +312,31 @@ async function processImage(contribution) {
   } catch (error) {
     console.error('❌ Erreur traitement image:', error);
     throw error;
+  }
+}
+
+async function markIssueAsRejected(closedIssue, entries) {
+  try {
+    console.log(`🗑️ Marquage issue fermée #${closedIssue.number} comme "rejected"`);
+    
+    // Chercher l'entrée correspondante dans entries.json
+    const issueId = `issue-${closedIssue.number}`;
+    const entryIndex = entries.entries.findIndex(entry => entry.id === issueId);
+    
+    if (entryIndex !== -1) {
+      // Marquer l'entrée comme "rejected"
+      entries.entries[entryIndex].moderation = {
+        status: 'rejected',
+        moderatedAt: new Date().toISOString(),
+        reason: 'Supprimée par un administrateur'
+      };
+      console.log(`✅ Entrée ${issueId} marquée comme "rejected"`);
+    } else {
+      console.log(`⚠️ Entrée ${issueId} non trouvée dans entries.json`);
+    }
+    
+  } catch (error) {
+    console.error(`❌ Erreur marquage issue fermée #${closedIssue.number}:`, error);
   }
 }
 
