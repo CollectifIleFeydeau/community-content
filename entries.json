@@ -171,38 +171,6 @@
     "reason": "Supprimée par un administrateur"
    },
    "thumbnailUrl": "https://res.cloudinary.com/dpatqkgsc/image/upload/v1758201287/wyxy6gsicbj9xwgi4pje.png"
-  },
-  {
-   "id": "test-cloudinary",
-   "type": "photo",
-   "displayName": "Test Cloudinary",
-   "sessionId": "",
-   "createdAt": "2025-09-18T12:30:00Z",
-   "timestamp": "2025-09-18T12:30:00Z",
-   "likes": 0,
-   "likedBy": [],
-   "moderation": {
-    "status": "approved",
-    "moderatedAt": "2025-09-18T12:30:00Z"
-   },
-   "content": "Test d'une photo avec URL Cloudinary",
-   "imageUrl": "https://res.cloudinary.com/dpatqkgsc/image/upload/v1750364944/f6shgldrbhdhk2eg3xhk.png",
-   "thumbnailUrl": "https://res.cloudinary.com/dpatqkgsc/image/upload/v1750364944/f6shgldrbhdhk2eg3xhk.png"
-  },
-  {
-   "id": "test-testimonial",
-   "type": "testimonial",
-   "displayName": "Test Témoignage",
-   "sessionId": "",
-   "createdAt": "2025-09-18T12:30:00Z",
-   "timestamp": "2025-09-18T12:30:00Z",
-   "likes": 0,
-   "likedBy": [],
-   "moderation": {
-    "status": "approved",
-    "moderatedAt": "2025-09-18T12:30:00Z"
-   },
-   "content": "Ceci est un témoignage de test qui devrait s'afficher correctement dans la galerie."
   }
  ],
  "lastUpdated": "2025-09-18T12:30:00Z"
