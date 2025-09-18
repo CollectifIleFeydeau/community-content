@@ -1,8 +1,7 @@
 name: Community Manager
 
 on:
-  issues:
-    types: [opened, closed, edited]  # Toutes les actions sur issues
+  # Ne se déclenche QUE si direct deploy échoue ou est désactivé
   workflow_dispatch:  # Manuel si besoin
   schedule:
     - cron: '0 */2 * * *'  # Backup toutes les 2h seulement
